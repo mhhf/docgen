@@ -3,8 +3,9 @@
 var fs = require("fs");
 var marked = require("marked");
 var Viz = require("viz.js");
+const { execFileSync } = require('child_process')
 
-let style = fs.readFileSync(__dirname + '/node_modules/github-markdown-css/github-markdown.css', 'utf8');
+let style = fs.readFileSync(__dirname + '/css/github-markdown.css', 'utf8');
 
 let inputFile = process.argv[2];
 let outputFile = process.argv[3];
@@ -15,6 +16,13 @@ let processor = {
     let ret = Viz(data, Object.assign(options, {format: 'svg'}));
     ret ="<center>\n"+ret.replace(/^[^\n]*\n[^\n]*\n[^\n]*\n/,'')+"\n</center>";
     return ret
+  },
+  sh (data, options) {
+    let line = data.replace(/\n/g, '').split(/\s/);
+    let cmd = line[0];
+    let params = line.slice(1);
+    let out = execFileSync(cmd, params);
+    return out.toString();
   }
 };
 
