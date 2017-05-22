@@ -1,62 +1,53 @@
 #! /usr/bin/env node
 "use strict";
+
+var {render} = require("./render.js");
+
+render();
+
 var fs = require("fs");
-var marked = require("marked");
-var Viz = require("viz.js");
-const { execFileSync } = require('child_process')
+var express = require('express')
+var http = require('http')
+var path = require('path')
+var reload = require('reload')
+var bodyParser = require('body-parser')
+const opn = require('opn');
 
-let style = fs.readFileSync(__dirname + '/css/github-markdown.css', 'utf8');
+var app = express()
 
-let inputFile = process.argv[2];
+app.set('port', process.env.PORT || 3000)
+app.use(bodyParser.json()) //parses json, multi-part (file), url-encoded
+
+app.get('/', function(req, res) {
+  res.sendFile(path.join(path.resolve(), './doc/doc.html'))
+})
+
+var server = http.createServer(app);
 let outputFile = process.argv[3];
 
-let data = fs.readFileSync(inputFile, "utf8");
-let processor = {
-  viz (data, options) {
-    let ret = Viz(data, Object.assign(options, {format: 'svg'}));
-    ret ="<center>\n"+ret.replace(/^[^\n]*\n[^\n]*\n[^\n]*\n/,'')+"\n</center>";
-    return ret
-  },
-  sh (data, options) {
-    let line = data.replace(/\n/g, '').split(/\s/);
-    let cmd = line[0];
-    let params = line.slice(1);
-    let out = execFileSync(cmd, params);
-    return out.toString();
-  }
-};
+let reloadServer = reload(server, app);
 
-data = data.replace(/```({([^}]*)})?([^`]*)```/gm, (a,b,c,d,e,f) => {
-  const args = c.split(",")
-  const argO = {};
-  args.slice(1)
-  .forEach(a => {
-    let apair = a.split("=");
-    let key = apair[0].replace(/ /, "");
-    if(apair.length == 2) {
-      argO[key] = apair[1];
-    } else if(apair.length == 1) {
-      argO[key] = true;
-    }
-  })
-  const ptype = args[0];
-  if(typeof processor[ptype] === 'function') {
-    return processor[ptype](d, argO);
-  } else {
-    return a;
-  }
+var toReload = false;
+
+var doReload = () => {
+  toReload = false;
+  render();
+  reloadServer.reload();
+  console.log("RELOAD");
+}
+
+fs.watch(path.join(path.resolve(), "src"), {
+  recursive: true
+}, function (a, b) {
+  if(b === "asddsa.sol") return null;
+  if(!toReload) toReload = true;
+  setTimeout(() => {
+    if(toReload) doReload();
+  }, 400)
+})
+
+
+server.listen(app.get('port'), function(){
+  console.log("Web server listening on port " + app.get('port'));
 });
-
-let customStyle = `
-svg {
-  max-width: 100%;
-}
-body {
-  width:80%;
-  margin: auto;
-  padding: 45px 15px;
-  box-shadow: 0px 0px 20px 0px #ccc;
-}
-`
-
-fs.writeFileSync(outputFile, `<html><head><style>${customStyle} ${style}</style></head><body class="markdown-body">`+marked(data)+`</body></html>`, 'utf8');
+// opn('http://localhost:3000');
