@@ -51,7 +51,7 @@ const format = function (ls) {
 function isPrintable (x) {
   return x.match(/.{1,2}/g)
           .map(c => parseInt(c, 16))
-          .reduce((a, n) => a && 32 < n && n <= 126, true);
+          .reduce((a, n) => a && 32 <= n && n <= 126, true);
 }
 
 function toString (x) {
@@ -90,11 +90,19 @@ const formatNode = function (ls, el) {
         });
         let formatted = children.map(c => formatNode(ls, c));
         let data = `digraph A {\n${formatted.join("\n")}\n}`;
-        console.log(data);
+        // console.log(data);
         let ret = Viz(data, {format: 'svg'});
         ret ="<center>\n"+ret.replace(/^[^\n]*\n[^\n]*\n[^\n]*\n/,'')+"\n</center>";
         return ret;
         break;
+      case "h1":
+      case "h2":
+      case "h3":
+      case "h4":
+      case "h5":
+      case "ul":
+      case "li":
+      case "b":
       case "td":
       case "tr":
         return handleNested(el.name);
@@ -107,12 +115,29 @@ const formatNode = function (ls, el) {
         let v = el.params.str.value.slice(2);
         return isPrintable(v) ? toString(v) : "0x" + v;
       case "edge":
-        return `  "${el.params.a.value}" -> "${el.params.b.value}";`;
+        let edgeParams = ("params" in el.params) ? el.params.params.value.slice(2) : "";
+        let edgeOptions = edgeParams && isPrintable(edgeParams) ? "["+ toString(edgeParams)+"]" : "";
+        return `  "${el.params.a.value}" -> "${el.params.b.value}" ${edgeOptions};`;
       case "tnode":
         let table = ls.find(l => l.params._id.value === el.params.table.value);
         return `  "${el.params.id.value}" [shape=none, label=<${formatNode(ls, table)}>];`;
       case "node":
-
+        let vv = el.params.name.value.slice(2);
+        let label = isPrintable(vv) ? toString(vv) : "0x" + vv;
+        // let nodeParams = [`label=${label}`];
+        // if(label.indexOf(",") > -1) {
+        //   nodeParams = label.split(",");
+        // } else if(label.indexOf("=") > -1) {
+        //   nodeParams = [label];
+        // }
+        // let nodeObject = {}
+        // nodeParams.forEach(p => {
+        //   let pp = p.split("=");
+        //   console.log(pp);
+        //   if(pp.length >= 2)
+        //     nodeObject[pp[0]] = pp[1];
+        // })
+        return `  "${el.params.id.value}" [${label.indexOf("=") > -1 ? label : `label="${label}"` }];`;
       default:
         return `[${el.name}]`;
     }
@@ -173,7 +198,7 @@ var posthook = function (data) {
     let file = solTemplate(tests, header);
     fs.writeFileSync(`src/asddsa.sol`, file, "utf8");
     try {
-    execSync(`dapp eval`, {encoding: "utf8"});
+    execSync(`dapp eval 2> /dev/null`, {encoding: "utf8"});
     } catch(e) {
       console.log("ERROR");
       return `\n\`\`\`\n${e}\n\`\`\`\n`;
